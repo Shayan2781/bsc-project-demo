@@ -8,9 +8,9 @@ export function getItems(data) {
 }
 
 export function calculateTotal(items) {
-  // BUG: off-by-one — reads items[items.length] which is undefined
+  // FIX: Changed <= to < to prevent accessing undefined item at index items.length
   let total = 0;
-  for (let i = 0; i <= items.length; i++) {
+  for (let i = 0; i < items.length; i++) {
     total += items[i].price;
   }
   return total;
