@@ -3,8 +3,11 @@
  */
 
 export function getItems(data) {
-  // BUG: no null check — crashes when API returns undefined
-  return data.items.length;
+  // FIX: Add a null/undefined check before accessing properties
+  if (!data || typeof data !== 'object') {
+    return 0;
+  }
+  return data.items ? data.items.length : 0;
 }
 
 export function calculateTotal(items) {
