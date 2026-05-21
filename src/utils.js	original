@@ -1,0 +1,8 @@
+// Assuming 'data' is the parameter passed to function 'o'
+export function o(data) {
+  // Add a check to ensure 'data' and 'data.items' exist before accessing 'items'
+  if (data && data.items) {
+    return data.items;
+  // Return an empty array or handle the undefined case appropriately
+  return [];
+}
