@@ -3,8 +3,23 @@
  */
 
 export function getItems(data) {
-  // BUG: no null check — crashes when API returns undefined
+  // FIX: Add null/undefined check before accessing data.items
+  if (!data || !data.items) {
+    return 0;
+  }
   return data.items.length;
+}
+
+export function calculateTotal(items) {
+ */
+
+export function getItems(data) {
+  // BUG: no null check — crashes when API returns undefined
+
+export function formatUserName(user) {
+  // BUG: assumes user.profile exists
+  return user.profile.name.toUpperCase();
+}
 }
 
 export function calculateTotal(items) {
