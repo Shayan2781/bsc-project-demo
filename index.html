@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Demo — Error Auto-Fixer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      max-width: 960px; margin: 0 auto; padding: 2rem;
+      background: #0f172a; color: #e2e8f0; min-height: 100vh;
+    }
+    h1 { color: #38bdf8; margin-bottom: 0.25rem; }
+    .subtitle { color: #64748b; margin-bottom: 1.5rem; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 1.25rem;
+    }
+    .card h2 { margin: 0 0 1rem; font-size: 1rem; color: #7dd3fc; }
+    button {
+      background: #0369a1; color: white; border: none;
+      padding: 0.65rem 1.1rem; border-radius: 8px; cursor: pointer;
+      margin: 0 0.4rem 0.4rem 0; font-size: 0.9rem;
+    }
+    button:hover { background: #0284c7; }
+    button.crash { background: #b91c1c; }
+    button.crash:hover { background: #dc2626; }
+    button.pipeline { background: #059669; }
+    button.pipeline:hover { background: #10b981; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .kv { display: grid; grid-template-columns: 140px 1fr; gap: 0.35rem 0.75rem; font-size: 0.85rem; }
+    .kv .k { color: #64748b; }
+    .kv .v { font-family: ui-monospace, monospace; color: #e2e8f0; word-break: break-all; }
+    .log {
+      background: #020617; border: 1px solid #334155; border-radius: 8px;
+      padding: 0.75rem; font-family: ui-monospace, monospace; font-size: 0.8rem;
+      max-height: 280px; overflow-y: auto;
+    }
+    .log div { padding: 0.15rem 0; }
+    .ok { color: #4ade80; }
+    .err { color: #f87171; }
+    .info { color: #93c5fd; }
+    .warn { color: #fbbf24; }
+    #result { margin-top: 0.75rem; padding: 0.5rem; background: #020617; border-radius: 6px; min-height: 2rem; }
+    a { color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <h1>Live Demo</h1>
+  <p class="subtitle">Real bugs in <code>src/utils.js</code> → source maps → LLM fix → GitHub PR</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>1. App (real crashes)</h2>
+      <p style="font-size:0.85rem;color:#94a3b8;margin-top:0">Each button runs buggy production code — no <code>throw</code>, no mock errors.</p>
+      <button id="btn-load-dashboard" class="crash">Load Dashboard</button>
+      <button id="btn-calculate" class="crash">Calculate Total</button>
+      <button id="btn-profile" class="crash">Show Profile</button>
+      <div id="result"></div>
+    </div>
+
+    <div class="card">
+      <h2>2. Pipeline (backend)</h2>
+      <div class="kv">
+        <span class="k">Error ID</span><span class="v" id="val-error-id">—</span>
+        <span class="k">Analysis ID</span><span class="v" id="val-analysis-id">—</span>
+        <span class="k">PR URL</span><span class="v" id="val-pr-url">—</span>
+      </div>
+      <div style="margin-top:1rem">
+        <button id="btn-analyze" class="pipeline" disabled>Analyze</button>
+        <button id="btn-patch" class="pipeline" disabled>Generate Patch</button>
+        <button id="btn-pr" class="pipeline" disabled>Create GitHub PR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h2>Status</h2>
+    <div class="kv">
+      <span class="k">Project key</span><span class="v" id="cfg-project">—</span>
+      <span class="k">Release</span><span class="v" id="cfg-release">—</span>
+      <span class="k">Source map</span><span class="v" id="cfg-sourcemap">—</span>
+      <span class="k">SDK</span><span class="v" id="cfg-sdk">—</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h2>Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script type="module">
+    import { init } from '../../client-sdk/src/index.js';
+    import { LIVE_DEMO_CONFIG as CFG } from './config.js';
+
+    const logEl = document.getElementById('log');
+    let errorId = null;
+    let analysisId = null;
+
+    function log(msg, cls = 'info') {
+      const d = document.createElement('div');
+      d.className = cls;
+      d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.prepend(d);
+    }
+
+    function setPipelineState() {
+      document.getElementById('btn-analyze').disabled = !errorId;
+      document.getElementById('btn-patch').disabled = !analysisId;
+      document.getElementById('btn-pr').disabled = !analysisId;
+    }
+
+    document.getElementById('cfg-project').textContent = CFG.projectKey;
+    document.getElementById('cfg-release').textContent = CFG.release;
+
+    async function uploadSourceMap() {
+      const mapUrl = './dist/app.bundle.js.map';
+      try {
+        const res = await fetch(mapUrl);
+        if (!res.ok) throw new Error('Run: npm run build:live-demo');
+        const blob = await res.blob();
+        const form = new FormData();
+        form.append('file', blob, `${CFG.bundleName}.map`);
+        form.append('projectKey', CFG.projectKey);
+        form.append('version', CFG.release);
+        form.append('artifactName', CFG.bundleName);
+
+        const up = await fetch(`${CFG.endpoint}/api/v1/sourcemaps`, { method: 'POST', body: form });
+        const data = await up.json();
+        if (!up.ok) throw new Error(data.error || up.statusText);
+        document.getElementById('cfg-sourcemap').textContent = `uploaded (id ${data.id})`;
+        log(`Source map uploaded: ${CFG.bundleName}.map`, 'ok');
+      } catch (e) {
+        document.getElementById('cfg-sourcemap').textContent = 'failed';
+        log(`Source map upload failed: ${e.message}`, 'err');
+      }
+    }
+
+    init({
+      endpoint: CFG.endpoint,
+      projectKey: CFG.projectKey,
+      release: CFG.release,
+      environment: CFG.environment,
+      debug: true,
+      onErrorSent(data) {
+        errorId = data.id;
+        analysisId = null;
+        document.getElementById('val-error-id').textContent = String(errorId);
+        document.getElementById('val-analysis-id').textContent = '—';
+        document.getElementById('val-pr-url').textContent = '—';
+        log(`Error captured → server id ${errorId}`, 'ok');
+        setPipelineState();
+      },
+    });
+    document.getElementById('cfg-sdk').textContent = 'initialized';
+    log('SDK initialized', 'ok');
+
+    await uploadSourceMap();
+
+    document.getElementById('btn-analyze').addEventListener('click', async () => {
+      try {
+        log(`Analyzing error ${errorId}...`, 'info');
+        const res = await fetch(`${CFG.endpoint}/api/v1/analyze/${errorId}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        analysisId = data.id;
+        document.getElementById('val-analysis-id').textContent = String(analysisId);
+        log(`Analysis done (id ${analysisId}): ${data.suggestionSummary?.slice(0, 80) || 'ok'}`, 'ok');
+        setPipelineState();
+      } catch (e) {
+        log(`Analyze failed: ${e.message}`, 'err');
+      }
+    });
+
+    document.getElementById('btn-patch').addEventListener('click', async () => {
+      try {
+        log(`Generating patch for analysis ${analysisId}...`, 'info');
+        const res = await fetch(`${CFG.endpoint}/api/v1/analyze/${analysisId}/patch`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        log(`Patch ready → ${data.targetFile}${data.requiresManualReview ? ' (manual review)' : ''}`, data.requiresManualReview ? 'warn' : 'ok');
+        setPipelineState();
+      } catch (e) {
+        log(`Patch failed: ${e.message}`, 'err');
+      }
+    });
+
+    document.getElementById('btn-pr').addEventListener('click', async () => {
+      try {
+        log(`Creating GitHub PR from analysis ${analysisId}...`, 'info');
+        const res = await fetch(`${CFG.endpoint}/api/v1/pr/${analysisId}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || res.statusText);
+        const url = data.prUrl;
+        document.getElementById('val-pr-url').innerHTML = url ? `<a href="${url}" target="_blank">${url}</a>` : '—';
+        log(`PR created: ${url}`, 'ok');
+      } catch (e) {
+        log(`PR failed: ${e.message}`, 'err');
+      }
+    });
+
+    setPipelineState();
+    log('Click a red button to trigger a real crash.', 'info');
+  </script>
+
+  <!-- Bundled app (registers button handlers) -->
+  <script src="./dist/app.bundle.js"></script>
+</body>
+</html>
