@@ -3,19 +3,23 @@
  */
 import { getItems, calculateTotal, formatUserName } from './utils.js';
 
-export function initApp() {
-  document.getElementById('btn-load-dashboard')?.addEventListener('click', () => {
-    const apiResponse = undefined;
-    const count = getItems(apiResponse);
-    document.getElementById('result').textContent = `Items: ${count}`;
-  });
+// ../src/app.js
+import { o } from './utils';
 
-  document.getElementById('btn-calculate')?.addEventListener('click', () => {
-    const items = [{ price: 10 }, { price: 20 }];
-    const total = calculateTotal(items);
-    document.getElementById('result').textContent = `Total: $${total}`;
-  });
+function getItems(data) {
+  // Check if data is defined and has an 'items' property before accessing it
+  if (data && data.items) {
+    return o(data.items);
+  }
+  return []; // Return an empty array or handle the undefined case as appropriate
+}
 
+// ... other code in app.js
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+  } else {
   document.getElementById('btn-profile')?.addEventListener('click', () => {
     const user = { id: 1 };
     const name = formatUserName(user);
