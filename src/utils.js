@@ -4,6 +4,17 @@
 
 export function getItems(data) {
   // BUG: no null check — crashes when API returns undefined
+  if (!data?.items) {
+    return 0;
+  }
+  return data.items.length;
+}
+
+export function calculateTotal(items) {
+ */
+
+export function getItems(data) {
+  // BUG: no null check — crashes when API returns undefined
   return data.items.length;
 }
 
