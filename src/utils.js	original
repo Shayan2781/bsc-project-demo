@@ -1,0 +1,4 @@
+// Add null check before accessing properties
+if (obj && obj.property) {
+  // Safe to access obj.property
+}
