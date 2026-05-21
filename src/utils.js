@@ -3,11 +3,18 @@
  */
 
 export function getItems(data) {
-  // BUG: no null check — crashes when API returns undefined
+  if (!data || !data.items) {
+    return 0;
+  }
   return data.items.length;
 }
 
 export function calculateTotal(items) {
+  // BUG: off-by-one — reads items[items.length] which is undefined
+  let total = 0;
+  for (let i = 0; i <= items.length; i++) {
+    total += items[i].price;
+  }
   // BUG: off-by-one — reads items[items.length] which is undefined
   let total = 0;
   for (let i = 0; i <= items.length; i++) {
