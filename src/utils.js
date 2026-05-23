@@ -17,6 +17,9 @@ export function calculateTotal(items) {
 }
 
 export function formatUserName(user) {
-  // BUG: assumes user.profile exists
+  // FIX: Check if user and user.profile exist before accessing name
+  if (!user || !user.profile) {
+    return 'Unknown User';
+  }
   return user.profile.name.toUpperCase();
 }
