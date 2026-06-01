@@ -3,7 +3,10 @@
  */
 
 export function getItems(data) {
-  // BUG: no null check — crashes when API returns undefined
+  // FIX: Add a null/undefined check before accessing properties
+  if (!data || typeof data !== 'object') {
+    return 0;
+  }
   return data.items.length;
 }
 
